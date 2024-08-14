@@ -1,0 +1,104 @@
+version: '3.9'
+
+services:
+  wordpress:
+    # default port = 9000 (FastCGI)
+    depends_on:
+      - database
+      - phpmyadmin
+    image: wordpress:${WORDPRESS_VERSION:-latest}
+    container_name: ${PROJECT_NAME}_wordpress
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      WORDPRESS_DB_HOST: ${DB_HOST} # use the same name as database service
+      WORDPRESS_DB_NAME: ${DATABASE_NAME}
+      # WORDPRESS_TABLE_PREFIX: ${WORDPRESS_TABLE_PREFIX:-wp_}
+      WORDPRESS_DB_USER: ${DATABASE_USER}
+      WORDPRESS_DB_PASSWORD: ${DATABASE_PASSWORD}
+    volumes:
+      - ${WORDPRESS_DATA_DIR:-./wordpress}:/var/www/html
+      - ./src:/var/www/html/wp-content:rw # sync wp-content from Docker install
+      - ./config/php.conf.ini:/usr/local/etc/php/conf.d/php.ini
+    networks:
+      - internal
+
+  nginx:
+    # default ports 80, 443 - expose mapping as needed to host
+    container_name: ${PROJECT_NAME}_nginx
+    build:
+      # custom build to allow for SSL configuration
+      context: .
+      dockerfile: ./nginx/Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      HOSTNAME: ${HOSTNAME}
+    depends_on:
+      - wordpress
+    ports:
+      - "82:82" # HTTP protocol
+      - "443:443" # HTTPS protocol
+    volumes:
+      - wordpress:/var/www/html
+      - ./nginx:/etc/nginx/conf.d:rw
+    networks:
+      - internal
+
+  database:
+    # default port 3306
+    container_name: ${PROJECT_NAME}_database
+    image: mysql:${MYSQL_VERSION:-latest}
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      MYSQL_DATABASE: ${DATABASE_NAME}
+      MYSQL_PASSWORD: ${DATABASE_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${DATABASE_ROOT_PASSWORD}
+      MYSQL_USER: ${DATABASE_USER}
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p$$DATABASE_ROOT_PASSWORD" ]
+      timeout: 20s
+      retries: 10
+    ports:
+      - "3306:3306"
+    volumes:
+      - dbdata:/var/lib/mysql
+    networks:
+      - internal
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin:${PHPMYADMIN_VERSION:-latest}
+    container_name: ${PROJECT_NAME}_phpmyadmin
+    env_file: .env
+    environment:
+      PMA_HOST: database ## use the same name as database service above
+      PMA_PORT: 3306
+      MYSQL_ROOT_PASSWORD: "${DATABASE_ROOT_PASSWORD}"
+    ports:
+      - "81:80"
+    networks:
+      - internal
+
+  wpcli:
+    depends_on:
+      - database
+      - wordpress
+    image: wordpress:cli
+    links:
+      - database:db
+    entrypoint: wp
+    command: "--info"
+    container_name: ${COMPOSE_PROJECT_NAME}_wpcli
+    volumes:
+      - ${WORDPRESS_DATA_DIR:-./wordpress}:/var/www/html
+    working_dir: /var/www/html
+
+volumes:
+  dbdata:
+  wordpress:
+
+
+networks:
+  internal:
+    driver: bridge
