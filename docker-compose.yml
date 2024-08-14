@@ -37,7 +37,7 @@ services:
     depends_on:
       - wordpress
     ports:
-      - "80:80" # HTTP protocol
+      - "82:82" # HTTP protocol
       - "443:443" # HTTPS protocol
     volumes:
       - wordpress:/var/www/html
