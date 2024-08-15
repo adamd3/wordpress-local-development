@@ -16,8 +16,8 @@ services:
       WORDPRESS_DB_PASSWORD: ${DATABASE_PASSWORD}
     volumes:
       - wordpress:/var/www/html
-      - ./src:/var/www/html/wp-content:rw # sync wp-content from Docker install
-      - ./config/php.conf.ini:/usr/local/etc/php/conf.d/php.ini
+      - ./src:/var/www/html/wp-content:rw
+      # - ./config/php.conf.ini:/usr/local/etc/php/conf.d/php.ini
     networks:
       - internal
 
@@ -89,7 +89,7 @@ services:
     command: "--info"
     container_name: ${COMPOSE_PROJECT_NAME}_wpcli
     volumes:
-      - ${WORDPRESS_DATA_DIR:-./wordpress}:/var/www/html
+      - wordpress:/var/www/html
     working_dir: /var/www/html
 
 volumes:
